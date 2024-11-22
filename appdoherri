@@ -1,0 +1,148 @@
+# Instalação de bibliotecas necessárias
+!pip install -q streamlit gspread oauth2client pandas
+
+# Importações
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import gspread
+from google.colab import auth
+from oauth2client.client import GoogleCredentials
+
+# Importações adicionais para execução em background
+import subprocess
+import sys
+import os
+
+# Script principal
+script_code = '''
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+import gspread
+from google.colab import auth
+from oauth2client.client import GoogleCredentials
+
+def get_google_sheet():
+    try:
+        auth.authenticate_user()
+        gc = gspread.authorize(GoogleCredentials.get_application_default())
+        
+        # Verifica se a planilha existe, se não cria
+        try:
+            sheet = gc.open('Controle_de_Ponto').sheet1
+        except gspread.SpreadsheetNotFound:
+            sheet = gc.create('Controle_de_Ponto').sheet1
+            sheet.append_row(["Funcionário", "Tipo de Registro", "Data/Hora"])
+        
+        return sheet
+    except Exception as e:
+        st.error(f"Erro de autenticação: {e}")
+        return None
+
+class PontoTracker:
+    def __init__(self):
+        self.sheet = get_google_sheet()
+        
+    def registrar_ponto(self, funcionario, tipo_registro):
+        if not self.sheet:
+            st.error("Planilha não configurada. Faça login no Google.")
+            return
+        
+        data_hora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        novo_registro = [funcionario, tipo_registro, data_hora]
+        
+        self.sheet.append_row(novo_registro)
+        st.success(f"Registro de {tipo_registro} para {funcionario} realizado com sucesso!")
+
+def main():
+    st.set_page_config(
+        page_title="Sistema de Gestão de Ponto",
+        page_icon="⏰",
+        layout="centered"
+    )
+
+    st.title("🕒 Controle de Ponto")
+
+    # Autenticação
+    st.sidebar.header("Login")
+    funcionario = st.sidebar.text_input("Nome do Funcionário")
+    
+    # Senha de exemplo - recomendo alterar
+    SENHA_PADRAO = "empresa2024"
+    senha = st.sidebar.text_input("Senha", type="password")
+
+    if senha != SENHA_PADRAO:
+        st.warning("Por favor, insira a senha correta")
+        return
+
+    if funcionario:
+        tracker = PontoTracker()
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            if st.button("🟢 Início do Expediente", key="inicio"):
+                tracker.registrar_ponto(funcionario, "Início do Expediente")
+
+            if st.button("🍽️ Início do Almoço", key="almoco_inicio"):
+                tracker.registrar_ponto(funcionario, "Início do Almoço")
+
+        with col2:
+            if st.button("🏁 Fim do Almoço", key="almoco_fim"):
+                tracker.registrar_ponto(funcionario, "Fim do Almoço")
+
+            if st.button("🔴 Fim do Expediente", key="fim"):
+                tracker.registrar_ponto(funcionario, "Fim do Expediente")
+
+        # Mostrar registros do dia
+        st.subheader("Seus Registros de Hoje")
+        hoje = datetime.now().strftime("%Y-%m-%d")
+        
+        try:
+            # Carrega todos os registros
+            registros = tracker.sheet.get_all_records()
+            
+            # Filtra registros do funcionário e do dia atual
+            registros_hoje = [
+                reg for reg in registros 
+                if reg.get('Funcionário') == funcionario and 
+                   reg.get('Data/Hora', '').startswith(hoje)
+            ]
+            
+            if registros_hoje:
+                df = pd.DataFrame(registros_hoje)
+                st.dataframe(df)
+            else:
+                st.info("Nenhum registro encontrado hoje.")
+        except Exception as e:
+            st.error(f"Erro ao carregar registros: {e}")
+
+if __name__ == '__main__':
+    main()
+'''
+
+# Salva o script em um arquivo
+with open('app.py', 'w') as f:
+    f.write(script_code)
+
+# Função para rodar Streamlit em background
+def run_streamlit():
+    print("Iniciando Streamlit...")
+    subprocess.run(['streamlit', 'run', 'app.py', '--server.port=8501'])
+
+# Salva o script de execução
+with open('run_streamlit.py', 'w') as f:
+    f.write('''
+import subprocess
+import sys
+
+def run_streamlit():
+    subprocess.run(['streamlit', 'run', 'app.py', '--server.port=8501'])
+
+if __name__ == '__main__':
+    run_streamlit()
+''')
+
+print("🚀 Ambiente preparado com sucesso!")
+print("Próximo passo: Execute a célula de execução do Streamlit")

@@ -146,3 +146,5 @@ if __name__ == '__main__':
 
 print("🚀 Ambiente preparado com sucesso!")
 print("Próximo passo: Execute a célula de execução do Streamlit")
+streamlit run streamlit_app.py
+
